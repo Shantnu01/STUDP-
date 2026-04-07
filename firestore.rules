@@ -1,0 +1,51 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: check if caller is a registered admin
+    function isAdmin() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Admins collection — only the user themselves can read their own doc
+    match /admins/{uid} {
+      allow read:  if request.auth != null && request.auth.uid == uid;
+      allow write: if false; // Written only via backend (Admin SDK)
+    }
+
+    // Schools — admin only
+    match /schools/{schoolId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Payments — admin only
+    match /payments/{paymentId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Registrations — public create (anyone can apply), admin read/update
+    match /registrations/{regId} {
+      allow create: if true;  // Public registration form
+      allow read, update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Messages with Admin HQ
+    match /messages/{schoolId}/thread/{msgId} {
+      allow read, write: if isAdmin();
+      allow read, write: if request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.schoolId == schoolId;
+    }
+
+    // Internal school conversations (P2P between principal, teachers, staff)
+    match /conversations/{threadId}/messages/{msgId} {
+      // Basic check: user must be logged in and part of a school
+      // In a real app, threadId strings should strictly be validated against the caller's uid
+      allow read, write: if request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+  }
+}

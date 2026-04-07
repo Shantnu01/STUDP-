@@ -1,0 +1,21 @@
+{
+  "name": "edusync-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Multi-portal student management platform with a TypeScript API, admin console, and principal portal.",
+  "scripts": {
+    "dev": "concurrently \"npm run dev --prefix backend-ts\" \"npm run dev --prefix frontend-admin\"",
+    "dev:full": "concurrently \"npm run dev --prefix backend-ts\" \"npm run dev --prefix frontend-admin\" \"npm run dev --prefix frontend-principal\"",
+    "dev:principal": "npm run dev --prefix frontend-principal",
+    "build": "npm run build --prefix backend-ts && npm run build --prefix frontend-admin && npm run build --prefix frontend-principal",
+    "lint": "npm run lint --prefix frontend-admin && npm run lint --prefix frontend-principal",
+    "check": "npm run lint && npm run build",
+    "start": "npm run dev"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
