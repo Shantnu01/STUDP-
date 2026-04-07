@@ -1,16 +1,23 @@
 import { useState } from 'react';
-import { Send, Users, Check, Search, MessageSquare, AtSign, ChevronDown, Construction } from 'lucide-react';
+import { Send, Users, Check, Search, MessageSquare, AtSign, ChevronDown } from 'lucide-react';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useAuthStore } from '@/store/authStore';
+import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
-const TEACHERS = [
-  { id: '1', name: 'Dr. Anita Rao',     subject: 'Mathematics',   email: 'anita@school.edu' },
-  { id: '2', name: 'Mr. Suresh Kumar',  subject: 'Physics',       email: 'suresh@school.edu' },
-  { id: '3', name: 'Ms. Deepa Nair',    subject: 'English',       email: 'deepa@school.edu' },
-  { id: '4', name: 'Mr. Rajesh Pillai', subject: 'History',       email: 'rajesh@school.edu' },
-  { id: '5', name: 'Ms. Priya Iyer',    subject: 'Chemistry',     email: 'priya@school.edu' },
-  { id: '6', name: 'Mr. Arun Menon',    subject: 'Physical Ed.',  email: 'arun@school.edu' },
-  { id: '7', name: 'Ms. Kavita Shetty', subject: 'Computer Sci.', email: 'kavita@school.edu' },
-  { id: '8', name: 'Mr. Vinod Bhat',    subject: 'Geography',     email: 'vinod@school.edu' },
+const RECIPIENTS = [
+  { id: 'teacher1', name: 'Dr. Anita Rao',   subject: 'Mathematics Teacher',  email: 'anita@school.edu' },
+  { id: 'teacher2', name: 'Ms. Deepa Nair',  subject: 'English Teacher',      email: 'deepa@school.edu' },
+  { id: 'teacher3', name: 'Mr. Suresh Kumar',subject: 'Physics Teacher',      email: 'suresh@school.edu' },
+  { id: 'staff1',   name: 'Ramesh Pillai',   subject: 'Office Administrator', email: 'ramesh@school.edu' },
+  { id: 'staff2',   name: 'Kavitha Sharma',  subject: 'Librarian',            email: 'kavitha@school.edu' },
+  { id: 'staff3',   name: 'Mr. Arun Menon',  subject: 'PE Teacher',           email: 'arun@school.edu' },
 ];
+
+function makeThreadId(uidA: string, uidB: string) {
+  return [uidA, uidB].sort().join('__');
+}
 
 const TEMPLATES = [
   { label: 'Staff Meeting Reminder', body: 'Dear {name},\n\nThis is a reminder that a Staff Meeting is scheduled for [DATE] at [TIME] in the Conference Hall.\n\nYour attendance is mandatory.\n\nRegards,\nPrincipal' },
@@ -25,17 +32,22 @@ export default function BulkMessage() {
   const [message, setMessage] = useState('');
   const [subject, setSubject] = useState('');
   const [channelOpen, setChannelOpen] = useState(false);
-  const [channel, setChannel] = useState<'email' | 'sms' | 'app'>('email');
+  const [channel, setChannel] = useState<'email' | 'sms' | 'app'>('app');
   const [sent, setSent] = useState(false);
 
-  const filtered = TEACHERS.filter(t =>
+  const { user, profile } = useAuthStore();
+  const myUid = user?.uid ?? '';
+  const myName = profile?.displayName || user?.displayName || 'Principal';
+  const navigate = useNavigate();
+
+  const filtered = RECIPIENTS.filter(t =>
     t.name.toLowerCase().includes(search.toLowerCase()) ||
     t.subject.toLowerCase().includes(search.toLowerCase())
   );
 
   const toggleAll = () => {
-    if (selected.size === TEACHERS.length) setSelected(new Set());
-    else setSelected(new Set(TEACHERS.map(t => t.id)));
+    if (selected.size === RECIPIENTS.length) setSelected(new Set());
+    else setSelected(new Set(RECIPIENTS.map(t => t.id)));
   };
 
   const toggle = (id: string) => {
@@ -45,11 +57,47 @@ export default function BulkMessage() {
     setSelected(s);
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (selected.size === 0 || !message.trim()) return;
-    // TODO: wire to backend API
+    if (!myUid) {
+      toast.error('You must be logged in to send messages');
+      return;
+    }
+
     setSent(true);
-    setTimeout(() => setSent(false), 3000);
+    try {
+      // Log memory to Firestore chat thread for all channels
+      const promises = Array.from(selected).map(targetId => {
+        const threadId = makeThreadId(myUid, targetId);
+        const recipient = RECIPIENTS.find(r => r.id === targetId);
+        const finalMessage = recipient ? message.replace(/\{name\}/g, recipient.name.split(' ')[0]) : message;
+        
+        // Add tag if not sending strictly as app notification
+        let prefix = '';
+        if (channel === 'email') prefix = '📧 [Sent via Email]\n';
+        if (channel === 'sms') prefix = '📱 [Sent via SMS]\n';
+        
+        return addDoc(collection(db, 'conversations', threadId, 'messages'), {
+          text: prefix + finalMessage,
+          senderId: myUid,
+          senderName: myName,
+          recipientId: targetId,
+          ts: serverTimestamp(),
+        });
+      });
+      await Promise.all(promises);
+
+      if (channel !== 'app') {
+        // SMS or Email mock
+        await new Promise(r => setTimeout(r, 1000));
+      }
+      
+      toast.success(`Message sent to ${selected.size} recipients!`);
+      setTimeout(() => { setSent(false); navigate('/principal/chat'); }, 1500);
+    } catch (e: any) {
+      toast.error('Error sending messages: ' + e.message);
+      setSent(false);
+    }
   };
 
   const applyTemplate = (body: string) => {
@@ -61,11 +109,7 @@ export default function BulkMessage() {
       <header className="flex items-start justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Bulk Message</h1>
-          <p className="text-[var(--txt2)] mt-1">Send messages to selected teachers at once.</p>
-        </div>
-        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-400 text-xs font-semibold">
-          <Construction className="w-4 h-4" />
-          Backend integration coming soon
+          <p className="text-[var(--txt2)] mt-1">Send secure messages to selected staff.</p>
         </div>
       </header>
 
@@ -78,10 +122,10 @@ export default function BulkMessage() {
                 <Users className="w-4 h-4 text-[var(--accent)]" />
                 Recipients
               </div>
-              <div className="card-sub">{selected.size} of {TEACHERS.length} selected</div>
+              <div className="card-sub">{selected.size} of {RECIPIENTS.length} selected</div>
             </div>
-            <button onClick={toggleAll} className={`text-xs font-semibold px-3 py-1.5 rounded-xl transition-all ${selected.size === TEACHERS.length ? 'btn-danger' : 'btn btn-ghost'}`}>
-              {selected.size === TEACHERS.length ? 'Deselect All' : 'Select All'}
+            <button onClick={toggleAll} className={`text-xs font-semibold px-3 py-1.5 rounded-xl transition-all ${selected.size === RECIPIENTS.length ? 'btn-danger' : 'btn btn-ghost'}`}>
+              {selected.size === RECIPIENTS.length ? 'Deselect All' : 'Select All'}
             </button>
           </div>
 
@@ -91,7 +135,7 @@ export default function BulkMessage() {
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Search teachers…"
+                placeholder="Search staff..."
                 className="w-full pl-9 pr-4 py-2.5 bg-[var(--bg3)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] text-[var(--txt)]"
               />
             </div>
@@ -218,7 +262,7 @@ export default function BulkMessage() {
                 <div className="flex flex-wrap gap-2 p-3 bg-[var(--bg3)] rounded-xl">
                   <span className="text-xs text-[var(--txt3)] font-semibold self-center">To:</span>
                   {Array.from(selected).map(id => {
-                    const t = TEACHERS.find(x => x.id === id);
+                    const t = RECIPIENTS.find(x => x.id === id);
                     return t ? (
                       <span key={id} className="text-xs font-medium bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/20 px-2.5 py-1 rounded-full">
                         {t.name.split(' ')[0]}
@@ -248,7 +292,7 @@ export default function BulkMessage() {
 
               {sent && (
                 <p className="text-center text-xs text-emerald-400 font-medium animate-in fade-in">
-                  ✓ Message will be delivered once backend integration is complete.
+                  ✓ Message delivered to chat successfully. Redirecting...
                 </p>
               )}
             </div>

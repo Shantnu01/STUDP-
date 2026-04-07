@@ -98,7 +98,16 @@ router.get('/', ...principalOnly, async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'School ID missing' })
     }
 
-    const students = await listStudentsForSchool(req.schoolId)
+    let query: any = db.collection('students').where('schoolId', '==', req.schoolId)
+    if (typeof req.query.classId === 'string' && req.query.classId) {
+      query = query.where('classId', '==', req.query.classId)
+    }
+    if (typeof req.query.section === 'string' && req.query.section) {
+      query = query.where('section', '==', req.query.section)
+    }
+
+    const snap = await query.get()
+    const students = snap.docs.map((doc: any) => ({ id: doc.id, ...(doc.data() as StudentInput) })) as StudentRecord[]
     res.json({ students: sortStudents(students) })
   } catch (e: any) {
     res.status(500).json({ error: e.message })

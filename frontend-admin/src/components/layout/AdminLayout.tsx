@@ -5,6 +5,7 @@ import { useSchools } from '@/hooks/useSchools'
 import { useRegistrations } from '@/hooks/useRegistrations'
 import { useAdminGlobalChat } from '@/hooks/useAdminGlobalChat'
 import MessagingPanel from '@/components/MessagingPanel'
+import SchoolModal from '@/components/modals/SchoolModal'
 import {
   LayoutDashboard, School, BarChart2, CreditCard, FileText,
   ClipboardList, Settings, MessageSquare, LogOut, Plus, Download,
@@ -23,12 +24,13 @@ const NAV = [
 
 export default function AdminLayout() {
   const { user, logout } = useAuth()
-  const { schools } = useSchools()
+  const { schools, addSchool } = useSchools()
   const { registrations } = useRegistrations()
   const nav = useNavigate()
   const location = useLocation()
   const [msgOpen, setMsgOpen] = useState(false)
   const [selectedSchoolId, setSelectedSchoolId] = useState<string | null>(null)
+  const [addSchoolOpen, setAddSchoolOpen] = useState(false)
 
   const { totalUnread } = useAdminGlobalChat(schools)
 
@@ -226,16 +228,12 @@ export default function AdminLayout() {
           <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-.3px', flex: 1 }}>
             {currentSection}
           </div>
-          {(location.pathname === '/schools' || location.pathname === '/dashboard') && (
-            <button className="btn btn-ghost btn-sm" onClick={handleExport}>
-              <Download size={12} /> Export CSV
-            </button>
-          )}
-          {(location.pathname === '/schools' || location.pathname === '/dashboard') && (
-            <button className="btn btn-accent btn-sm" onClick={() => nav('/schools')}>
-              <Plus size={12} /> Add school
-            </button>
-          )}
+          <button className="btn btn-ghost btn-sm" onClick={handleExport}>
+            <Download size={12} /> Export CSV
+          </button>
+          <button className="btn btn-accent btn-sm" onClick={() => setAddSchoolOpen(true)}>
+            <Plus size={12} /> Add school
+          </button>
         </div>
 
         {/* Page content */}
@@ -250,6 +248,15 @@ export default function AdminLayout() {
           schools={schools}
           initialSchoolId={selectedSchoolId}
           onClose={() => { setMsgOpen(false); setSelectedSchoolId(null) }}
+        />
+      )}
+
+      {/* ── ADD SCHOOL MODAL ─────────────────────────────────── */}
+      {addSchoolOpen && (
+        <SchoolModal
+          school={null}
+          onSave={addSchool}
+          onClose={() => setAddSchoolOpen(false)}
         />
       )}
     </div>

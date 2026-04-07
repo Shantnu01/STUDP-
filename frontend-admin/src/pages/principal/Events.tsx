@@ -22,9 +22,20 @@ const CATEGORY_CONFIG: Record<EventCategory, { label: string; icon: any; cls: st
 };
 
 const INITIAL_EVENTS: SchoolEvent[] = [
-  { id: '1', title: 'Spring Semester Exams', description: 'Final examinations for 2026 spring session.', date: '2026-04-10', time: '10:00 AM', category: 'academic', audience: 'Grades 6-12' },
-  { id: '2', title: 'District Sports Meet', description: 'Annual athletic competition at district level.', date: '2026-04-15', time: '09:00 AM', category: 'sports', audience: 'Athletic Teams' },
+  { id: '1', title: 'Spring Semester Exams', description: 'Final examinations for 2026 spring session.', date: '2026-04-10', time: '10:00', category: 'academic', audience: 'Grades 6-12' },
+  { id: '2', title: 'District Sports Meet', description: 'Annual athletic competition at district level.', date: '2026-04-15', time: '09:00', category: 'sports', audience: 'Athletic Teams' },
 ];
+
+function fmtEventTime(t: string): string {
+  if (!t) return '--:--';
+  const [hStr, mStr] = t.split(':');
+  const h = parseInt(hStr, 10);
+  const m = mStr || '00';
+  if (isNaN(h)) return t;
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${m} ${ampm}`;
+}
 
 export default function Events() {
   const [events, setEvents] = useState<SchoolEvent[]>(INITIAL_EVENTS);
@@ -153,7 +164,7 @@ export default function Events() {
                                 </div>
                                 <div className="text-sm text-[var(--txt2)] mt-1 line-clamp-2">{e.description}</div>
                                 <div className="flex items-center gap-4 mt-3 flex-wrap">
-                                   <div className="flex items-center gap-1.5 text-[10px] font-mono text-[var(--txt3)]"><Clock size={12} /> {e.time || '--:--'}</div>
+                                   <div className="flex items-center gap-1.5 text-[10px] font-mono text-[var(--txt3)]"><Clock size={12} /> {fmtEventTime(e.time)}</div>
                                    <div className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-[var(--border)] text-[var(--txt3)] bg-[var(--bg3)]">{e.audience}</div>
                                 </div>
                              </div>

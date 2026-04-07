@@ -16,6 +16,10 @@ import studentsRouter from './routes/students'
 import staffRouter    from './routes/staff'
 import classesRouter  from './routes/classes'
 import attendanceRouter from './routes/attendance'
+import teachersRouter from './routes/teachers'
+import feesRouter from './routes/fees'
+import personnelPaymentsRouter from './routes/personnelPayments'
+import { startAttendanceCron } from './cron/attendanceCron'
 
 const app  = express()
 const PORT = process.env.PORT || 4000
@@ -59,8 +63,11 @@ app.use('/api/analytics',     analyticsRouter)
 // School-specific routes
 app.use('/api/students',      studentsRouter)
 app.use('/api/staff',         staffRouter)
+app.use('/api/teachers',      teachersRouter)
 app.use('/api/classes',       classesRouter)
 app.use('/api/attendance',    attendanceRouter)
+app.use('/api/fees',          feesRouter)
+app.use('/api/personnel-payments', personnelPaymentsRouter)
 
 // Health check
 app.get('/health', (_req, res) => res.json({
@@ -85,6 +92,9 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 app.listen(PORT, () => {
   console.log(`\n🚀 EduSync API running on http://localhost:${PORT}`)
   console.log(`   Health: http://localhost:${PORT}/health\n`)
+  
+  // Boot scheduled background jobs
+  startAttendanceCron()
 })
 
 export default app

@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { Users, UserRound, BookOpen, CalendarCheck, TrendingUp, AlertCircle, CheckCircle, Clock, DollarSign, Bell, MessageCircle, FileText, Zap, BarChart2, Award } from 'lucide-react';
 import { Line, Doughnut } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
+import { usePrincipalStats } from '@/hooks/usePrincipalStats';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement);
 
@@ -41,10 +42,6 @@ const ATTENDANCE_DATA = {
   ],
 };
 
-const GENDER_DATA = {
-  labels: ['Boys', 'Girls'],
-  datasets: [{ data: [648, 592], backgroundColor: ['#60a5fa', '#f472b6'], borderWidth: 0 }],
-};
 
 const CLASS_PERFORMANCE = [
   { grade: 'Grade 12', avg: 82, color: '#34d399' },
@@ -93,7 +90,24 @@ const chartOptions = {
 
 export default function PrincipalDashboard() {
   const navigate = useNavigate();
+  const { totalStudents, activeTeachers, totalStaff, pendingFees, boysCount, girlsCount, loading } = usePrincipalStats();
   const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+  // Merge live data into the STATS cards
+  const liveStats = STATS.map(card => {
+    if (card.label === 'Total Students')   return { ...card, value: loading ? '…' : totalStudents.toLocaleString('en-IN') };
+    if (card.label === 'Active Teachers')  return { ...card, value: loading ? '…' : String(activeTeachers) };
+    if (card.label === 'Pending Fees')     return { ...card, value: loading ? '…' : String(pendingFees) };
+    return card;
+  });
+
+  const boysPct = totalStudents > 0 ? Math.round((boysCount / totalStudents) * 100) : 0;
+  const girlsPct = totalStudents > 0 ? Math.round((girlsCount / totalStudents) * 100) : 0;
+
+  const dynamicGenderData = {
+    labels: ['Boys', 'Girls'],
+    datasets: [{ data: [boysCount, girlsCount], backgroundColor: ['#60a5fa', '#f472b6'], borderWidth: 0 }],
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
@@ -118,7 +132,7 @@ export default function PrincipalDashboard() {
 
       {/* KPI Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-        {STATS.slice(0, 8).map(card => (
+        {liveStats.slice(0, 8).map(card => (
           <div key={card.label} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px', cursor: 'pointer', transition: 'all .2s' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = card.accent; (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)'; }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.transform = 'none'; }}
@@ -190,10 +204,10 @@ export default function PrincipalDashboard() {
           </div>
           <div style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 20 }}>
             <div style={{ width: 130, height: 130, flexShrink: 0 }}>
-              <Doughnut data={GENDER_DATA} options={{ plugins: { legend: { display: false } }, cutout: '72%', maintainAspectRatio: true }} />
+              <Doughnut data={dynamicGenderData} options={{ plugins: { legend: { display: false } }, cutout: '72%', maintainAspectRatio: true }} />
             </div>
             <div style={{ flex: 1 }}>
-              {[{ label: 'Male Students', count: 648, pct: '52%', color: '#60a5fa' }, { label: 'Female Students', count: 592, pct: '48%', color: '#f472b6' }].map(d => (
+              {[{ label: 'Male Students', count: boysCount, pct: `${boysPct}%`, color: '#60a5fa' }, { label: 'Female Students', count: girlsCount, pct: `${girlsPct}%`, color: '#f472b6' }].map(d => (
                 <div key={d.label} style={{ marginBottom: 14 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5, fontSize: 12 }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -207,7 +221,7 @@ export default function PrincipalDashboard() {
                   </div>
                 </div>
               ))}
-              <div style={{ marginTop: 8, fontSize: 12, color: 'var(--txt2)' }}>Total: <strong style={{ color: 'var(--txt)' }}>1,240</strong> students</div>
+              <div style={{ marginTop: 8, fontSize: 12, color: 'var(--txt2)' }}>Total: <strong style={{ color: 'var(--txt)' }}>{totalStudents.toLocaleString('en-IN')}</strong> students</div>
             </div>
           </div>
         </div>

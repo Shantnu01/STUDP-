@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Plus, Search, Edit, X, Save, User } from 'lucide-react';
+import { Plus, Search, Edit, X, Save, User, Download } from 'lucide-react';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
 import { STUDENT_MOCK_DATA } from '@/lib/mockData';
+import { exportCSV } from '@/lib/utils';
 
 interface Student {
   id: string;
@@ -230,13 +231,29 @@ export default function Students() {
           <h1 className="text-3xl font-bold tracking-tight">Students</h1>
           <p className="text-[var(--txt2)] mt-1">Manage student records and enrollments.</p>
         </div>
-        <button
-          onClick={openAdd}
-          className="flex items-center gap-2 bg-[var(--accent)] text-black font-bold px-5 py-2.5 rounded-xl hover:opacity-90 transition-all shadow-lg shadow-[var(--accent)]/20 self-start text-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Add Student
-        </button>
+        <div className="flex items-center gap-3 self-start">
+          <button
+            onClick={() => exportCSV(
+              filtered.map(s => ({
+                Name: s.name, ID: s.studentId, Roll: s.rollNo,
+                Class: s.classId, Section: s.section, Gender: s.gender,
+                Phone: s.phone, Status: s.status
+              })),
+              'EduSync_Students.csv'
+            )}
+            className="flex items-center gap-2 bg-[var(--bg3)] border border-[var(--border)] text-[var(--txt)] font-bold px-4 py-2.5 rounded-xl hover:bg-[var(--bg4)] transition-all text-sm"
+          >
+            <Download className="w-4 h-4" />
+            Export CSV
+          </button>
+          <button
+            onClick={openAdd}
+            className="flex items-center gap-2 bg-[var(--accent)] text-black font-bold px-5 py-2.5 rounded-xl hover:opacity-90 transition-all shadow-lg shadow-[var(--accent)]/20 text-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Add Student
+          </button>
+        </div>
       </header>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -286,6 +303,7 @@ export default function Students() {
                 <th>Class</th>
                 <th>Section</th>
                 <th>Gender</th>
+                <th>Parent's</th>
                 <th>Phone</th>
                 <th>Status</th>
                 <th className="text-right">Actions</th>
@@ -293,9 +311,9 @@ export default function Students() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={9} className="p-12 text-center text-[var(--txt3)]">Loading...</td></tr>
+                <tr><td colSpan={10} className="p-12 text-center text-[var(--txt3)]">Loading...</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={9} className="p-12 text-center text-[var(--txt3)]">No students match the current filters.</td></tr>
+                <tr><td colSpan={10} className="p-12 text-center text-[var(--txt3)]">No students match the current filters.</td></tr>
               ) : filtered.map((student) => (
                 <tr key={student.id} className="group">
                   <td>
@@ -315,6 +333,7 @@ export default function Students() {
                   <td className="text-[var(--txt)]">{student.classId}</td>
                   <td className="text-[var(--txt2)]">{student.section || '--'}</td>
                   <td className="text-[var(--txt2)] text-sm">{student.gender || '--'}</td>
+                  <td className="text-[var(--txt)] text-sm">{student.parentName || '--'}</td>
                   <td className="text-[var(--txt2)] text-xs mono">{student.phone || '--'}</td>
                   <td>
                     <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${student.status === 'active' ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20' : 'text-gray-400 bg-gray-400/10 border-gray-400/20'}`}>
