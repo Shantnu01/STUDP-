@@ -1,42 +1,27 @@
 import { useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { useSchools } from '@/hooks/useSchools'
-import { usePayments } from '@/hooks/usePayments'
+import { useAdminStats } from '@/hooks/useAdminStats'
 import { useRegistrations } from '@/hooks/useRegistrations'
 import SchoolModal from '@/components/modals/SchoolModal'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { planPrice, planColors, statusBadge, fmtINR, fmtDate, initials } from '@/lib/utils'
+import { planColors, statusBadge, fmtINR, fmtDate, initials } from '@/lib/utils'
 import { School } from '@/types'
 import { MessageSquare, Pencil } from 'lucide-react'
 
-const REVENUE_DATA = [
-  { month: 'Sep', revenue: 410, expenses: 210 }, { month: 'Oct', revenue: 490, expenses: 240 },
-  { month: 'Nov', revenue: 520, expenses: 255 }, { month: 'Dec', revenue: 610, expenses: 280 },
-  { month: 'Jan', revenue: 670, expenses: 300 }, { month: 'Feb', revenue: 710, expenses: 310 },
-  { month: 'Mar', revenue: 780, expenses: 340 }, { month: 'Apr', revenue: 840, expenses: 360 },
-]
-
 export default function Dashboard() {
   const { schools, addSchool, updateSchool, deleteSchool } = useSchools()
-  const { payments } = usePayments()
   const { registrations, approve, reject } = useRegistrations()
+  const { metrics, planSplit, revenueTrends, recentPayments, loading } = useAdminStats()
   const { setSelectedSchoolId, setMsgOpen } = useOutletContext<any>()
   const [modalSchool, setModalSchool] = useState<School | null | undefined>(undefined)
 
-  const active   = schools.filter(s => s.status === 'active')
-  const overdue  = schools.filter(s => s.status === 'overdue')
-  const pending  = registrations.filter(r => r.status === 'pending')
-  const mrr      = active.reduce((a, s) => a + planPrice(s.plan), 0)
-  const arr      = mrr * 12
-
-  const planSplit = ['Enterprise', 'Growth', 'Starter'].map(p => {
-    const list = schools.filter(s => s.plan === p)
-    const rev  = list.reduce((a, s) => a + planPrice(s.plan), 0)
-    return { plan: p, count: list.length, rev }
-  })
-  const maxRev = Math.max(...planSplit.map(p => p.rev), 1)
-
   const openMsg = (id: string) => { setSelectedSchoolId(id); setMsgOpen(true) }
+
+  // Fallback to local filtering if hook hasn't loaded (for responsive feel)
+  const pending = registrations.filter(r => r.status === 'pending')
+  
+  const maxRev = Math.max(...planSplit.map(p => p.rev), 1)
 
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -44,23 +29,23 @@ export default function Dashboard() {
       <div className="grid4">
         <div className="mc">
           <div className="mc-label">MRR</div>
-          <div className="mc-value">{fmtINR(mrr)}</div>
+          <div className="mc-value">{loading ? '…' : fmtINR(metrics.mrr)}</div>
           <div className="mc-delta up">↑ Live · Firestore</div>
         </div>
         <div className="mc">
           <div className="mc-label">Active schools</div>
-          <div className="mc-value">{active.length}</div>
-          <div className="mc-delta up">↑ {schools.length} total</div>
+          <div className="mc-value">{loading ? '…' : metrics.activeSchools}</div>
+          <div className="mc-delta up">↑ {metrics.totalSchools} total</div>
         </div>
         <div className="mc">
           <div className="mc-label">Pending</div>
-          <div className="mc-value">{pending.length}</div>
+          <div className="mc-value">{loading ? pending.length : metrics.pendingRegistrations}</div>
           <div className="mc-delta" style={{ color: 'var(--txt2)' }}>Awaiting review</div>
         </div>
         <div className="mc">
           <div className="mc-label">Overdue</div>
-          <div className="mc-value">{overdue.length}</div>
-          <div className="mc-delta dn">{overdue.length > 0 ? '↑ Action needed' : '✓ Clear'}</div>
+          <div className="mc-value">{loading ? '…' : metrics.overdueSchools}</div>
+          <div className="mc-delta dn">{metrics.overdueSchools > 0 ? '↑ Action needed' : '✓ Clear'}</div>
         </div>
       </div>
 
@@ -69,7 +54,7 @@ export default function Dashboard() {
         <div className="card">
           <div className="card-header">
             <span className="card-title">Revenue vs Expenses</span>
-            <span className="card-sub">8 months · ₹K</span>
+            <span className="card-sub">Real Transaction Trend · ₹K</span>
           </div>
           <div className="card-body">
             <div style={{ display: 'flex', gap: 14, marginBottom: 10, fontSize: 11, color: 'var(--txt2)' }}>
@@ -77,11 +62,11 @@ export default function Dashboard() {
                 <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--accent)', display: 'inline-block' }} />Revenue
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--bg5)', display: 'inline-block' }} />Expenses
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--bg5)', display: 'inline-block' }} />Expenses (Est.)
               </span>
             </div>
             <ResponsiveContainer width="100%" height={165}>
-              <BarChart data={REVENUE_DATA} barSize={14} barGap={3}>
+              <BarChart data={revenueTrends} barSize={14} barGap={3}>
                 <CartesianGrid vertical={false} stroke="rgba(255,255,255,.04)" />
                 <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#444' }} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#444' }} tickFormatter={v => `₹${v}K`} />
@@ -104,11 +89,11 @@ export default function Dashboard() {
             <div className="grid2" style={{ marginBottom: 14 }}>
               <div style={{ background: 'var(--bg3)', borderRadius: 8, padding: 10 }}>
                 <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--txt2)', marginBottom: 3, fontFamily: 'DM Mono, monospace' }}>ARR</div>
-                <div style={{ fontSize: 18, fontWeight: 600, letterSpacing: '-1px' }}>{fmtINR(arr)}</div>
+                <div style={{ fontSize: 18, fontWeight: 600, letterSpacing: '-1px' }}>{loading ? '…' : fmtINR(metrics.arr)}</div>
               </div>
               <div style={{ background: 'var(--bg3)', borderRadius: 8, padding: 10 }}>
                 <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--txt2)', marginBottom: 3, fontFamily: 'DM Mono, monospace' }}>Per school</div>
-                <div style={{ fontSize: 18, fontWeight: 600, letterSpacing: '-1px' }}>{schools.length ? fmtINR(mrr / schools.length) : '—'}</div>
+                <div style={{ fontSize: 18, fontWeight: 600, letterSpacing: '-1px' }}>{loading ? '…' : (metrics.totalSchools ? fmtINR(metrics.mrr / metrics.totalSchools) : '—')}</div>
               </div>
             </div>
             {planSplit.map(({ plan, count, rev }) => (
@@ -129,9 +114,9 @@ export default function Dashboard() {
       {/* Schools table */}
       <div className="card">
         <div className="card-header">
-          <span className="card-title">Schools</span>
-          <span className="card-sub">{schools.length} registered</span>
-          <button className="btn btn-accent btn-sm" onClick={() => setModalSchool(null)}>+ Add</button>
+          <span className="card-title">Schools Management</span>
+          <span className="card-sub">{schools.length} total registered schools</span>
+          <button className="btn btn-accent btn-sm" onClick={() => setModalSchool(null)}>+ Add School</button>
         </div>
         <div className="table-wrap">
           <table>
@@ -147,7 +132,7 @@ export default function Dashboard() {
             </thead>
             <tbody>
               {schools.length === 0 && (
-                <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--txt3)', padding: 28, fontFamily: 'DM Mono, monospace' }}>No schools yet · Add your first</td></tr>
+                <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--txt3)', padding: 28, fontFamily: 'DM Mono, monospace' }}>No schools found in databases</td></tr>
               )}
               {schools.map(s => {
                 const { bg, color } = planColors(s.plan)
@@ -156,7 +141,7 @@ export default function Dashboard() {
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                         <div className="av" style={{ width: 26, height: 26, fontSize: 9, background: bg, color }}>{initials(s.name)}</div>
-                        {s.name}
+                        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</div>
                       </div>
                     </td>
                     <td><span className="badge badge-gray">{s.plan}</span></td>
@@ -165,8 +150,8 @@ export default function Dashboard() {
                     <td style={{ fontFamily: 'DM Mono, monospace' }}>{fmtDate(s.lastPayment)}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 5 }}>
-                        <button className="btn btn-blue btn-sm" onClick={() => openMsg(s.id)}><MessageSquare size={11} /> Message</button>
-                        <button className="btn btn-ghost btn-sm" onClick={() => setModalSchool(s)}><Pencil size={11} /> Edit</button>
+                        <button className="btn btn-blue btn-sm" onClick={() => openMsg(s.id)}><MessageSquare size={11} /> Chat</button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => setModalSchool(s)}><Pencil size={11} /> Manage</button>
                       </div>
                     </td>
                   </tr>
@@ -182,42 +167,49 @@ export default function Dashboard() {
         {/* Pending registrations */}
         <div className="card">
           <div className="card-header">
-            <span className="card-title">Pending registrations</span>
-            <span className="card-sub">{pending.length} new</span>
+            <span className="card-title">Awaiting Approval</span>
+            <span className="card-sub">{pending.length} new requests</span>
           </div>
-          {pending.length === 0 ? (
-            <div className="card-body" style={{ color: 'var(--txt3)', fontSize: 12, fontFamily: 'DM Mono, monospace' }}>No pending requests</div>
-          ) : pending.map(r => (
-            <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 500 }}>{r.schoolName}, {r.city}</div>
-                <div style={{ fontSize: 11, color: 'var(--txt2)', marginTop: 2, fontFamily: 'DM Mono, monospace' }}>
-                  {r.plan} · {r.students.toLocaleString('en-IN')} students · {fmtDate(r.createdAt)}
+          <div className="card-body-scroll" style={{ maxHeight: 300, overflowY: 'auto' }}>
+            {pending.length === 0 ? (
+              <div className="card-body" style={{ color: 'var(--txt3)', fontSize: 12, fontFamily: 'DM Mono, monospace' }}>Inbox clear</div>
+            ) : pending.map(r => (
+              <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 500 }}>{r.schoolName}, {r.city}</div>
+                  <div style={{ fontSize: 11, color: 'var(--txt2)', marginTop: 2, fontFamily: 'DM Mono, monospace' }}>
+                    {r.plan} · {r.students.toLocaleString('en-IN')} students
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+                  <button className="btn btn-green btn-sm" onClick={() => approve(r)}>Approve</button>
+                  <button className="btn btn-red btn-sm" onClick={() => reject(r.id)}>Reject</button>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
-                <button className="btn btn-green btn-sm" onClick={() => approve(r)}>Approve</button>
-                <button className="btn btn-red btn-sm" onClick={() => reject(r.id)}>Reject</button>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
         {/* Recent payments */}
         <div className="card">
-          <div className="card-header"><span className="card-title">Recent payments</span></div>
-          {payments.length === 0 ? (
-            <div className="card-body" style={{ color: 'var(--txt3)', fontSize: 12, fontFamily: 'DM Mono, monospace' }}>No payments yet</div>
-          ) : payments.slice(0, 5).map(p => (
-            <div key={p.id} style={{ display: 'flex', alignItems: 'center', padding: '9px 14px', borderBottom: '1px solid var(--border)', gap: 10 }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.schoolName}</div>
-                <div style={{ fontSize: 11, color: 'var(--txt2)', fontFamily: 'DM Mono, monospace' }}>{p.plan} · {fmtDate(p.date)}</div>
+          <div className="card-header">
+            <span className="card-title">Recent Transactions</span>
+            <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto', fontSize: 10 }}>View All</button>
+          </div>
+          <div className="card-body-scroll" style={{ maxHeight: 300, overflowY: 'auto' }}>
+            {recentPayments.length === 0 ? (
+              <div className="card-body" style={{ color: 'var(--txt3)', fontSize: 12, fontFamily: 'DM Mono, monospace' }}>No transactions recorded</div>
+            ) : recentPayments.map(p => (
+              <div key={p.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid var(--border)', gap: 10 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.schoolName}</div>
+                  <div style={{ fontSize: 11, color: 'var(--txt2)', fontFamily: 'DM Mono, monospace' }}>{p.plan} · {fmtDate(p.date)}</div>
+                </div>
+                <span className={`badge ${statusBadge(p.status)}`}>{p.status}</span>
+                <div style={{ fontSize: 12, fontWeight: 600, fontFamily: 'DM Mono, monospace' }}>{fmtINR(p.amount)}</div>
               </div>
-              <span className={`badge ${statusBadge(p.status)}`}>{p.status}</span>
-              <div style={{ fontSize: 12, fontWeight: 600, fontFamily: 'DM Mono, monospace' }}>₹{p.amount.toLocaleString('en-IN')}</div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
 

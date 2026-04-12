@@ -37,6 +37,8 @@ router.get('/me', verifyToken, async (req: AuthRequest, res: Response) => {
       db.collection('registrations').where('uid', '==', req.uid!).limit(1).get(),
     ])
 
+    console.log(`[auth/me] UID:${req.uid!} Admin:${adminDoc.exists} User:${userDoc.exists} Reg:${!registrationSnap.empty}`)
+
     // Check if user exists in the admins collection
     if (adminDoc.exists) {
       return res.json({
