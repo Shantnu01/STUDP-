@@ -42,10 +42,9 @@ service cloud.firestore {
 
     // Internal school conversations (P2P between principal, teachers, staff)
     match /conversations/{threadId}/messages/{msgId} {
-      // Basic check: user must be logged in and part of a school
-      // In a real app, threadId strings should strictly be validated against the caller's uid
       allow read, write: if request.auth != null && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        (isAdmin() || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.schoolId != null);
     }
   }
 }
